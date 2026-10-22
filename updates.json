@@ -1,7 +1,13 @@
 {
   "addons": {
     "volume-mixer@example.org": {
-      "updates": []
+      "updates": [
+        {
+          "version": "1.0.0",
+          "update_link": "https://github.com/RistoQ/browser-volume-mixer/releases/download/v1.0.0/volume-mixer.xpi",
+          "update_hash": "sha256:5be08d6af65e19c50154ac1102321135acacf313b41961e423641d3ae1af73aa"
+        }
+      ]
     }
   }
 }

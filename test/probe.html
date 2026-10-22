@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>probe</title>
+</head>
+<body>
+<p>Volume Mixer smoke-test probe. Reports what the MAIN-world hook patched.</p>
+<script>
+(function () {
+  'use strict';
+
+  function patched(obj, name, kind) {
+    var desc = Object.getOwnPropertyDescriptor(obj, name);
+    if (!desc) {
+      return null;
+    }
+    var fn = kind === 'get' ? desc.get : kind === 'set' ? desc.set : desc.value;
+    if (typeof fn !== 'function') {
+      return null;
+    }
+    return String(fn).indexOf('[native code]') === -1;
+  }
+
+  var reports = 0;
+  var sets = 0;
+  window.addEventListener('message', function (event) {
+    var data = event.data;
+    if (!data || data.__vmHook !== true) {
+      return;
+    }
+    if (data.type === 'report') {
+      reports++;
+    }
+    if (data.type === 'set') {
+      sets++;
+    }
+  });
+
+  function report(label) {
+    var AudioCtor = window.AudioContext || window.webkitAudioContext;
+    var result = {
+      when: label,
+      guard: window.__ff_volume_mixer_hook__ === true,
+      play: patched(HTMLMediaElement.prototype, 'play'),
+      volumeGet: patched(HTMLMediaElement.prototype, 'volume', 'get'),
+      volumeSet: patched(HTMLMediaElement.prototype, 'volume', 'set'),
+      createElement: patched(Document.prototype, 'createElement'),
+      createMediaElementSource: AudioCtor
+        ? patched(AudioCtor.prototype, 'createMediaElementSource')
+        : null,
+      nodeConnect: patched(AudioNode.prototype, 'connect'),
+      nodeDisconnect: patched(AudioNode.prototype, 'disconnect'),
+      setMediaKeys:
+        typeof HTMLMediaElement.prototype.setMediaKeys === 'function'
+          ? patched(HTMLMediaElement.prototype, 'setMediaKeys')
+          : null,
+      audioCtorReplaced: typeof window.Audio === 'function'
+        ? String(window.Audio).indexOf('[native code]') === -1
+        : null,
+      reportsSeen: reports,
+      setMessagesSeen: sets
+    };
+    var text = JSON.stringify(result);
+    console.log('PROBE ' + label + ' ' + text);
+    try {
+      fetch('/probe-result?data=' + encodeURIComponent(text), { cache: 'no-store' });
+    } catch (e) {
+      /* the fetch beacon is best effort */
+    }
+  }
+
+  setTimeout(function () {
+    report('1.5s');
+  }, 1500);
+  setTimeout(function () {
+    report('5s');
+  }, 5000);
+})();
+</script>
+</body>
+</html>

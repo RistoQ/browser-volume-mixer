@@ -1,0 +1,235 @@
+/* Firefox Volume Mixer - popup styling */
+
+:root {
+  --bg: #1c1b22;
+  --panel: #2b2a33;
+  --panel-hover: #383743;
+  --text: #fbfbfe;
+  --text-dim: #b1b1bb;
+  --accent: #8f6bff;
+  --border: #52525e;
+  --warn: #ffd567;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 380px;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.35 system-ui, "Segoe UI", sans-serif;
+}
+
+button {
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--panel-hover);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------- master */
+
+.master {
+  padding: 10px 12px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.master-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.master-label {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.master-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+.reset {
+  width: 100%;
+  margin-top: 8px;
+  padding: 4px 8px;
+  color: var(--text-dim);
+}
+
+.reset:hover {
+  color: var(--text);
+}
+
+/* --------------------------------------------------------- stepper row */
+
+/* [ -5% ] [ slider ] [ +5% ] [ number ] */
+.stepper {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px 56px;
+  gap: 6px;
+  align-items: center;
+}
+
+.step {
+  padding: 2px 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+.step:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.range {
+  width: 100%;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.number {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  /* The -5% / +5% buttons replace the native spinner arrows. */
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.number::-webkit-outer-spin-button,
+.number::-webkit-inner-spin-button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------- list */
+
+.tabs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(82, 82, 94, 0.5);
+}
+
+.row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.row.silent .title {
+  color: var(--text-dim);
+}
+
+.row-head {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.favicon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border-radius: 3px;
+}
+
+.favicon.placeholder {
+  background: var(--border);
+  opacity: 0.5;
+}
+
+.meta {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note {
+  color: var(--warn);
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.hundred,
+.mute {
+  flex: none;
+  padding: 2px 6px;
+}
+
+.hundred {
+  color: var(--text-dim);
+}
+
+.hundred:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.mute.muted {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+/* -------------------------------------------------------------- footer */
+
+.empty {
+  margin: 0;
+  padding: 22px 16px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.footer {
+  padding: 6px 12px;
+  color: var(--text-dim);
+  font-size: 11px;
+  border-top: 1px solid var(--border);
+  min-height: 24px;
+}

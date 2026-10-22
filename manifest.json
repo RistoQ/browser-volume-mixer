@@ -1,0 +1,58 @@
+{
+  "manifest_version": 2,
+  "name": "Firefox Volume Mixer",
+  "short_name": "Volume Mixer",
+  "version": "1.0.0",
+  "description": "Per-tab volume mixer: control each tab's volume independently, boost quiet audio above 100%, and set a master volume.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "volume-mixer@example.org",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
+  },
+  "icons": {
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
+  },
+  "permissions": [
+    "tabs",
+    "storage",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": [
+      "shared.js",
+      "background.js"
+    ],
+    "persistent": true
+  },
+  "browser_action": {
+    "default_title": "Volume Mixer",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "48": "icons/icon-48.png",
+      "96": "icons/icon-96.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/media-hook.js"],
+      "all_frames": true,
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["shared.js", "content/bridge.js"],
+      "all_frames": true,
+      "run_at": "document_start"
+    }
+  ]
+}

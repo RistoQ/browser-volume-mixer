@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Volume Mixer</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="master">
+    <div class="master-head">
+      <span class="master-label">Master volume</span>
+      <output id="master-value" class="master-value">100%</output>
+    </div>
+
+    <div class="stepper">
+      <button id="master-dec" class="step" type="button" title="Decrease master volume by 5%">&#8722;5%</button>
+      <input id="master-range" class="range" type="range" min="0" max="200" step="5" value="100"
+             aria-label="Master volume">
+      <button id="master-inc" class="step" type="button" title="Increase master volume by 5%">+5%</button>
+      <input id="master-number" class="number" type="number" min="0" max="200" step="5" value="100"
+             aria-label="Master volume percent">
+    </div>
+
+    <button id="reset" class="reset" type="button" title="Set every tab back to 100% and unmute them">
+      Reset all tabs to 100%
+    </button>
+  </header>
+
+  <main>
+    <ul id="tabs" class="tabs"></ul>
+    <p id="empty" class="empty">
+      No tab with audio yet.<br>
+      Open a video or a music player and it shows up here.
+    </p>
+  </main>
+
+  <footer class="footer">
+    <span id="status"></span>
+  </footer>
+
+  <script src="../shared.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

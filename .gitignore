@@ -1,0 +1,9 @@
+# Python bytecode from the helper scripts in tools/
+__pycache__/
+*.pyc
+
+# web-ext run/build output
+web-ext-artifacts/
+
+# local test scratch (server logs, downloaded probe output)
+*.log

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Volume Mixer - test tone</title>
+  <style>
+    body { font: 14px/1.5 system-ui, "Segoe UI", sans-serif; margin: 24px; max-width: 40em; }
+    button { font: inherit; padding: 6px 12px; margin-right: 8px; }
+    code { background: #f0f0f4; padding: 1px 4px; border-radius: 3px; }
+    #readout { margin-top: 16px; color: #444; }
+  </style>
+</head>
+<body>
+  <h1>Volume Mixer test tone</h1>
+
+  <p>
+    This page plays a looping tone through a real <code>&lt;audio&gt;</code> element
+    (a same-origin <code>blob:</code> URL), which is exactly the case the extension
+    can control and boost.
+  </p>
+
+  <p>
+    <button id="start" type="button">Start tone</button>
+    <button id="stop" type="button" disabled>Stop</button>
+  </p>
+
+  <audio id="player" loop></audio>
+
+  <p id="readout">Not playing.</p>
+
+  <p>
+    While it plays: open the extension popup, drag this tab's slider and watch the
+    element's own volume below. The extension leaves <code>element.volume</code>
+    untouched and applies its own gain on top, so the value you see here should
+    stay where this page put it (0.35) no matter what the slider says.
+  </p>
+
+  <script>
+    'use strict';
+
+    var player = document.getElementById('player');
+    var readout = document.getElementById('readout');
+    var startButton = document.getElementById('start');
+    var stopButton = document.getElementById('stop');
+    var url = null;
+
+    /* Build a small mono 16-bit WAV in memory and hand it to <audio> as a
+     * blob: URL. Same-origin, no CORS involved, so it is boostable. */
+    function makeToneUrl(seconds, frequency, sampleRate) {
+      var frames = Math.floor(seconds * sampleRate);
+      var bytesPerSample = 2;
+      var buffer = new ArrayBuffer(44 + frames * bytesPerSample);
+      var view = new DataView(buffer);
+
+      function writeAscii(offset, text) {
+        for (var i = 0; i < text.length; i++) {
+          view.setUint8(offset + i, text.charCodeAt(i));
+        }
+      }
+
+      writeAscii(0, 'RIFF');
+      view.setUint32(4, 36 + frames * bytesPerSample, true);
+      writeAscii(8, 'WAVE');
+      writeAscii(12, 'fmt ');
+      view.setUint32(16, 16, true);          /* PCM header size */
+      view.setUint16(20, 1, true);           /* format: PCM    */
+      view.setUint16(22, 1, true);           /* channels: mono */
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * bytesPerSample, true);  /* byte rate */
+      view.setUint16(32, bytesPerSample, true);
+      view.setUint16(34, 16, true);          /* bits per sample */
+      writeAscii(36, 'data');
+      view.setUint32(40, frames * bytesPerSample, true);
+
+      for (var n = 0; n < frames; n++) {
+        var value = Math.sin((2 * Math.PI * frequency * n) / sampleRate) * 0.6;
+        view.setInt16(44 + n * bytesPerSample, value * 0x7fff, true);
+      }
+      return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+    }
+
+    function updateReadout() {
+      if (player.paused) {
+        readout.textContent = 'Paused. element.volume = ' + player.volume.toFixed(2);
+      } else {
+        readout.textContent =
+          'Playing. element.volume = ' + player.volume.toFixed(2) +
+          ', muted = ' + player.muted +
+          ', currentTime = ' + player.currentTime.toFixed(1) + 's';
+      }
+    }
+
+    startButton.addEventListener('click', function () {
+      if (!url) {
+        url = makeToneUrl(4, 220, 44100);
+        player.src = url;
+      }
+      player.volume = 0.35;   /* the page's own level; the mixer multiplies it */
+      player.play();
+      startButton.disabled = true;
+      stopButton.disabled = false;
+    });
+
+    stopButton.addEventListener('click', function () {
+      player.pause();
+      startButton.disabled = false;
+      stopButton.disabled = true;
+    });
+
+    player.addEventListener('timeupdate', updateReadout);
+    player.addEventListener('play', updateReadout);
+    player.addEventListener('pause', updateReadout);
+    player.addEventListener('volumechange', updateReadout);
+  </script>
+</body>
+</html>

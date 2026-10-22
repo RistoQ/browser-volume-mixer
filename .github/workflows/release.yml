@@ -1,0 +1,96 @@
+name: Release
+
+# Pushing a version tag signs the extension on AMO (unlisted channel) and
+# publishes the signed .xpi, so installing it is a normal click in Firefox.
+#
+# Repository secrets required:
+#   AMO_API_KEY     AMO API key (JWT issuer)  - https://addons.mozilla.org/developers/addon/api/key/
+#   AMO_API_SECRET  AMO API secret (JWT secret)
+#
+# See README, "Installing for real", for the manual equivalent (tools/sign.sh).
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  sign-and-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the tagged source
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Structural checks
+        run: python3 tools/validate.py
+
+      - name: Add-on lint
+        # --self-hosted is what makes the linter accept the update_url in the
+        # manifest; without it the self-distribution setup is a MANIFEST_UPDATE_URL
+        # error. AMO accepts it too for the unlisted channel.
+        run: npx --yes web-ext lint --self-hosted
+
+      - name: Sign the add-on (AMO unlisted)
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+        # --no-input so a submission that lands in the manual review queue fails
+        # the job instead of hanging on a prompt. The submission stays queued and
+        # can be approved on AMO by hand, then the job can be re-run.
+        run: bash tools/sign.sh --no-input --approval-timeout=600000
+
+      - name: Collect the signed XPI
+        run: |
+          set -euo pipefail
+          xpi=$(ls web-ext-artifacts/*.xpi | head -n 1)
+          test -n "$xpi"
+          # A stable asset name, so the update_link in updates.json never changes.
+          cp "$xpi" web-ext-artifacts/volume-mixer.xpi
+          echo "signed: $xpi"
+
+      - name: Record this version in updates.json
+        run: |
+          python3 tools/make_updates.py \
+            --tag "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --xpi web-ext-artifacts/volume-mixer.xpi
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" --generate-notes \
+            || echo "release $GITHUB_REF_NAME already exists"
+          gh release upload "$GITHUB_REF_NAME" \
+            web-ext-artifacts/volume-mixer.xpi updates.json --clobber
+
+      - name: Check out the default branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: _branch
+
+      - name: Publish updates.json on the default branch
+        run: |
+          set -euo pipefail
+          cp updates.json _branch/updates.json
+          cd _branch
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add updates.json
+          if git diff --cached --quiet; then
+            echo "updates.json is already current on ${{ github.event.repository.default_branch }}"
+          else
+            git commit -m "Record $GITHUB_REF_NAME in updates.json"
+            git push origin "HEAD:${{ github.event.repository.default_branch }}"
+          fi

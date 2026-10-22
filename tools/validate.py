@@ -85,6 +85,59 @@ if manifest:
             f"{name}: manifest declares {size}px but the file is {w}x{h}",
         )
 
+# --- update manifest (self-distributed builds) --------------------------------
+# updates.json is what Firefox polls through browser_specific_settings.gecko.update_url
+# after the add-on has been signed and installed. Two things there fail silently in
+# the browser, so they are checked here instead: the key has to be the manifest's
+# add-on id, and the URL has to be plain https.
+updates_path = ROOT / "updates.json"
+if updates_path.is_file():
+    try:
+        updates_doc = json.loads(updates_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        errors.append(f"updates.json is not valid JSON: {exc}")
+        updates_doc = None
+    if isinstance(updates_doc, dict):
+        addons = updates_doc.get("addons")
+        check(isinstance(addons, dict), "updates.json has no 'addons' object")
+        gecko = (manifest or {}).get("browser_specific_settings", {}).get("gecko", {})
+        addon_id = gecko.get("id")
+        update_url = gecko.get("update_url", "")
+        check(
+            update_url.startswith("https://"),
+            f"manifest.json has no https update_url, so an installed copy would never "
+            f"look for updates (found {update_url!r})",
+        )
+        check(bool(addon_id), "manifest.json declares no gecko id to key updates on")
+        if addon_id and isinstance(addons, dict):
+            check(
+                addon_id in addons,
+                f"updates.json has no entry for the manifest's id {addon_id}, "
+                f"so updates would never match (has: {sorted(addons)})",
+            )
+            entries = addons.get(addon_id, {}).get("updates", [])
+            check(isinstance(entries, list), f"updates.json: {addon_id}.updates is not a list")
+            if isinstance(entries, list):
+                versions: list[str] = []
+                for entry in entries:
+                    version = entry.get("version", "")
+                    link = entry.get("update_link", "")
+                    versions.append(version)
+                    check(bool(version), "updates.json has an update entry with no version")
+                    check(
+                        link.startswith("https://"),
+                        f"updates.json: version {version!r} has a non-https update_link ({link!r})",
+                    )
+                    if "update_hash" in entry:
+                        check(
+                            str(entry["update_hash"]).startswith("sha256:"),
+                            f"updates.json: version {version!r} update_hash is not sha256:<hex>",
+                        )
+                check(
+                    len(versions) == len(set(versions)),
+                    f"updates.json lists a version more than once: {versions}",
+                )
+
 # --- everything else ----------------------------------------------------------
 def strip_js_noise(text: str) -> str:
     """Remove comments and string/template literals so that bracket counting

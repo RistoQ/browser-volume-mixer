@@ -10,6 +10,10 @@ every Firefox volume add-on has to: it injects a script into the page, patches t
 own media objects and inserts a Web Audio `GainNode` in front of the output. See
 [How it works](#how-it-works) and [Limitations](#limitations).
 
+**Install:** download the latest signed `volume-mixer.xpi` from
+[Releases](https://github.com/RistoQ/browser-volume-mixer/releases/latest), then open it and
+accept Firefox's prompt. See [Installing for real](#installing-for-real-signed-xpi).
+
 ---
 
 ## File structure
@@ -27,12 +31,17 @@ browser-volume-mixer/
 │   ├── media-hook.js      MAIN world: patches the page's audio objects, owns the GainNodes
 │   └── bridge.js          isolated world: the only thing that talks to both sides
 ├── icons/                 icon-48/96/128.png
+├── updates.json           the update manifest Firefox polls for new versions
 ├── web-ext-config.mjs     keeps the dev-only files out of linting/packaging
+├── .github/workflows/
+│   └── release.yml        on a version tag: lint, sign on AMO, publish the .xpi
 ├── test/
 │   ├── test-audio.html    a page that plays a real <audio> element, for manual testing
 │   └── probe.html         smoke-test probe page: reports which main-world hook patches landed
 └── tools/                 dev-only (exclude when packaging)
     ├── make_icons.py      regenerates the icons
+    ├── make_updates.py    records a released version in updates.json
+    ├── sign.sh            signs the .xpi on AMO for self-distribution
     └── validate.py        structural sanity checks
 ```
 
@@ -133,7 +142,97 @@ state snapshot to the popup over a long-lived port.
 6. **Muting** uses Firefox's own tab muting (`tabs.update(tabId, {muted: true})`) rather
    than gain 0, so it works even for tabs whose audio the extension cannot touch.
 
-## Install & test locally (Firefox, `about:debugging`)
+## Installing for real (signed `.xpi`)
+
+Firefox refuses to install an add-on from a folder on the Release and Beta channels:
+only **Mozilla-signed** packages are accepted there. So the three ways in are:
+
+| Route | Who it works for | What it costs |
+|---|---|---|
+| `about:debugging` (below) | you, now | the add-on is gone when Firefox closes |
+| `xpinstall.signatures.required = false` | you, but only on Developer Edition, Nightly or ESR | that preference does not exist on Release/Beta |
+| **a signed `.xpi`** (this section) | anyone you give the file to | an AMO account and one signing run per version |
+
+Releases are therefore signed on AMO's **unlisted** channel: AMO signs the package but
+publishes no listing, and the signed `.xpi` is distributed from this repository's releases.
+That is exactly why **this repository is public**: Firefox fetches the `.xpi` and the update
+manifest with no credentials, and GitHub serves release assets and raw files only from a
+public repository — an anonymous request to a private one answers 404, so a private repo can
+distribute to nobody but its owner.
+
+### Installing a release
+
+1. Download `volume-mixer.xpi` from
+   [the newest release](https://github.com/RistoQ/browser-volume-mixer/releases/latest).
+2. Open it — drag it onto a Firefox window, use **File → Open File**, or click it in the
+   downloads panel. GitHub hands release assets over as downloads (`Content-Disposition:
+   attachment`), so the link saves the file rather than installing straight from the page;
+   opening the saved file is what asks Firefox to install it.
+3. Accept Firefox's "Add Firefox Volume Mixer?" prompt.
+
+No `about:debugging`, no `about:config`: from here the add-on behaves like any installed
+extension — it survives restarts and updates itself (see below). Firefox **142 or newer** is
+required, which the manifest enforces.
+
+### Signing a release (maintainer)
+
+One-time setup: a developer account on [addons.mozilla.org](https://addons.mozilla.org/developers/)
+and an API key from <https://addons.mozilla.org/developers/addon/api/key/>. Keep the two
+values in `~/.amo.env` (outside this repository, `.gitignore`d) as `WEB_EXT_API_KEY` and
+`WEB_EXT_API_SECRET`, or export them.
+
+Then sign locally:
+
+```
+bash tools/sign.sh               # -> web-ext-artifacts/<id>-<version>-an+fx.xpi
+python tools/make_updates.py --tag v1.0.0 --xpi web-ext-artifacts/<that .xpi>
+```
+
+...or push a tag and let CI do the whole thing — bump `version` in `manifest.json` first and
+use that same number in the tag, because the release takes its version from the manifest and
+not from the tag (tagging `v1.0.1` while the manifest still says `1.0.0` publishes a package
+that disagrees with its own release):
+
+```
+git tag v1.0.1 && git push origin v1.0.1
+```
+
+`.github/workflows/release.yml` then runs the checks, signs the add-on (from the
+`AMO_API_KEY` / `AMO_API_SECRET` repository secrets — set once with
+`gh secret set AMO_API_KEY --repo RistoQ/browser-volume-mixer`, or under Settings → Secrets
+and variables → Actions), attaches `volume-mixer.xpi` and `updates.json` to the release and
+records the version in `updates.json` on the default branch. Unlisted submissions are
+normally signed within seconds by the automated review; any submission can still be looked
+at by a human afterwards, so read the
+[add-on policies](https://extensionworkshop.com/documentation/publish/add-on-policies/)
+before shipping something you would not want reviewed.
+
+Three things about those distribution URLs are easy to get wrong:
+
+- **They must be publicly readable — the repository has to stay public.** That is the reason
+  it is public: Firefox fetches the `.xpi` and `updates.json` anonymously, and GitHub answers
+  404 to anonymous requests for raw files or release assets in a private repository. Making it
+  private again (or deleting, renaming or transferring it) breaks the update check for
+  everyone who already installed, for the next reason.
+- **`update_url` is permanent.** An installed add-on keeps using the `update_url` baked
+  into the version it installed; if that URL ever stops resolving, those copies can never
+  be pointed at a new one — only an enterprise policy could redirect them. The URL, the
+  branch it lives on and the account it lives under are all one-way doors for existing
+  users, so treat them as fixed.
+- **`update_url` and a public AMO listing are mutually exclusive.** An add-on that carries
+  one is rejected for listing, so choosing self-distribution here closes that door.
+
+### Automatic updates
+
+`browser_specific_settings.gecko.update_url` points at the raw URL of `updates.json` on
+the default branch, and Firefox polls it whenever it checks for add-on updates (JSON
+update manifest — the old RDF form has been gone for years). `tools/make_updates.py`
+appends the released version with an `https` `update_link` to that release's `.xpi` and
+the `.xpi`'s sha256; `tools/validate.py` fails if the file's add-on id or its URLs drift
+away from the manifest. Only the `update_url` in the manifest and this file matter —
+`updates.json` is not part of the package.
+
+## Development install & test locally (Firefox, `about:debugging`)
 
 1. Open Firefox and go to **`about:debugging#/runtime/this-firefox`**.
 2. Click **"Load Temporary Add-on…"**.
@@ -221,12 +320,20 @@ not control it. It will still make the tab audible and therefore listed.
 ## Development notes
 
 ```
-python tools/validate.py                       # manifest, referenced files, icon sizes, JS bracket balance
+python tools/validate.py                       # manifest, referenced files, icon sizes, JS bracket balance, updates.json
 node --check shared.js background.js content/bridge.js content/media-hook.js popup/popup.js
-npx web-ext lint                               # add-on manifest lint (0 errors, 0 warnings, 0 notices)
-npx web-ext build                              # package for AMO -> web-ext-artifacts/
+npx web-ext lint --self-hosted                 # add-on manifest lint (0 errors, 0 warnings, 0 notices)
+npx web-ext build                              # package as a .zip -> web-ext-artifacts/
+bash tools/sign.sh                             # actually sign it for Firefox (needs AMO credentials)
 ```
 
-`web-ext-config.mjs` keeps `tools/`, `test/` and `README.md` out of linting and out of the
-packaged add-on, because those are development-only (the `.py` files would otherwise trip
-web-ext's `FLAGGED_FILE_TYPE` notice).
+`--self-hosted` is required now that the manifest carries an `update_url`: without it the
+linter reports `MANIFEST_UPDATE_URL` as an error, because a Mozilla-hosted add-on may not
+point updates elsewhere. AMO itself accepts the key for the unlisted channel. The release
+workflow runs `tools/validate.py` and this lint before it signs, so a tag that would publish
+something inconsistent fails before it reaches AMO.
+
+`web-ext-config.mjs` keeps `tools/`, `test/`, `README.md`, `updates.json`, `.github/` and
+the original prompt file out of linting and out of the packaged add-on, because those are
+development-only (the `.py` files would otherwise trip web-ext's `FLAGGED_FILE_TYPE`
+notice).

@@ -7,3 +7,7 @@ web-ext-artifacts/
 
 # local test scratch (server logs, downloaded probe output)
 *.log
+
+# AMO signing credentials - keep them in ~/.amo.env or CI secrets, never here
+amo.env
+*.env

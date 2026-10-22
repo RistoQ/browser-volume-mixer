@@ -1,6 +1,6 @@
 {
   "manifest_version": 2,
-  "name": "Firefox Volume Mixer",
+  "name": "Volume Mixer",
   "short_name": "Volume Mixer",
   "version": "1.0.0",
   "description": "Per-tab volume mixer: control each tab's volume independently, boost quiet audio above 100%, and set a master volume.",
